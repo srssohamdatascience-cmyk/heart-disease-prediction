@@ -10,6 +10,7 @@ try:
     model = pickle.load(open(model_path, 'rb'))
 except Exception as e:
     st.error(f"Error loading model: {e}")
+    st.stop()
     
 st.title("❤️ Heart Disease Prediction")
 st.markdown('Enter Patient details to predict risk')
