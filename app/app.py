@@ -2,7 +2,6 @@ import os
 import pickle
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
 
 # ================== LOAD MODEL ==================
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -87,42 +86,31 @@ input_df = pd.DataFrame({
     'st_slope': [st_slope]
 })
 
-# ================== PREDICTION (REAL-TIME) ==================
+# ================== PREDICTION ==================
 prediction = model.predict(input_df)[0]
 probability = model.predict_proba(input_df)[0][1]
 
-# ================== HERO SECTION ==================
+# ================== RISK ANALYSIS ==================
 st.markdown("## 📊 Risk Analysis")
 
-colA, colB = st.columns([2, 1])
+col1, col2, col3 = st.columns(3)
 
-with colA:
-    st.metric("Risk Probability", f"{probability:.2%}")
+# Risk %
+col1.metric("Risk Probability", f"{probability:.2%}")
 
-with colB:
-    if probability < 0.3:
-        st.success("🟢 Low Risk")
-    elif probability < 0.7:
-        st.warning("🟡 Moderate Risk")
-    else:
-        st.error("🔴 High Risk")
+# Risk Level + Guidance
+if probability < 0.3:
+    col2.metric("Risk Level", "Low", "🟢")
+    col3.success("Maintain a healthy lifestyle")
+elif probability < 0.7:
+    col2.metric("Risk Level", "Moderate", "🟡")
+    col3.warning("Consider consulting a doctor")
+else:
+    col2.metric("Risk Level", "High", "🔴")
+    col3.error("Medical consultation recommended")
 
-# ================== GAUGE CHART ==================
-fig = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=probability * 100,
-    title={'text': "Heart Risk (%)"},
-    gauge={
-        'axis': {'range': [0, 100]},
-        'steps': [
-            {'range': [0, 30], 'color': "green"},
-            {'range': [30, 70], 'color': "yellow"},
-            {'range': [70, 100], 'color': "red"},
-        ],
-    }
-))
-
-st.plotly_chart(fig, use_container_width=True)
+# Optional visual indicator
+st.progress(float(probability))
 
 # ================== SMART FEEDBACK ==================
 st.markdown("## 💡 Health Insights")
@@ -145,4 +133,4 @@ else:
     st.success("✅ Low Risk of Heart Disease")
 
 # ================== DISCLAIMER ==================
-st.caption("⚠️ This tool is for educational purposes only.")
+st.caption("⚠️ This tool is for educational purposes only and not a medical diagnosis.")
