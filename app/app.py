@@ -2,6 +2,7 @@ import os
 import pickle
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 
 # ================== LOAD MODEL ==================
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -14,68 +15,61 @@ except Exception as e:
     st.stop()
 
 # ================== PAGE CONFIG ==================
-st.set_page_config(page_title="Heart Disease Predictor", page_icon="❤️", layout="centered")
+st.set_page_config(page_title="Heart Disease Predictor", page_icon="❤️", layout="wide")
 
+# ================== SIDEBAR ==================
+with st.sidebar:
+    st.title("🧠 About")
+    st.write("This app predicts heart disease risk using Machine Learning.")
+    st.write("Fill the patient details to get instant prediction.")
+    if st.button("🔄 Reset"):
+        st.rerun()
+
+# ================== TITLE ==================
 st.title("❤️ Heart Disease Prediction")
-st.markdown("### Enter patient details to assess risk")
+st.markdown("### Smart risk analysis dashboard")
 
 # ================== MAPPINGS ==================
 chest_pain_map = {
-    "Typical Angina (Chest pain during activity)": "TA",
-    "Atypical Angina (Unusual chest pain)": "ATA",
-    "Non-Anginal Pain (Not heart-related)": "NAP",
-    "No Symptoms (Asymptomatic)": "ASY"
+    "Typical Angina (Pain during activity)": "TA",
+    "Atypical Angina (Unusual pain)": "ATA",
+    "Non-Anginal Pain": "NAP",
+    "No Symptoms": "ASY"
+}
+
+restingecg_map = {
+    "Normal": "Normal",
+    "ST Abnormality": "ST",
+    "Left Ventricular Hypertrophy": "LVH"
 }
 
 # ================== INPUT UI ==================
-st.header("🧾 Patient Information")
-
 col1, col2 = st.columns(2)
 
 with col1:
-    age = st.number_input("Age", min_value=10, max_value=100, value=25,
-                          help="Patient's age in years")
+    with st.expander("🧾 Basic Information", expanded=True):
+        age = st.number_input("Age", 10, 100, 25)
+        sex = st.radio("Gender", ["Male", "Female"])
+        chest_pain = st.selectbox("Chest Pain Type", list(chest_pain_map.keys()))
 
-    sex = st.radio("Gender", ["Male", "Female"])
-
-    chest_pain = st.selectbox("Chest Pain Type", list(chest_pain_map.keys()))
-
-    restingbp = st.number_input("Resting Blood Pressure", value=120,
-                                help="Normal range: ~90–120 mm Hg")
-
-    cholesterol = st.number_input("Cholesterol Level", value=200,
-                                  help="Measured in mg/dL. Ideal < 200")
+    with st.expander("❤️ Heart Metrics", expanded=True):
+        restingbp = st.number_input("Resting Blood Pressure", value=120)
+        cholesterol = st.number_input("Cholesterol", value=200)
+        maxhr = st.number_input("Max Heart Rate", value=150)
 
 with col2:
-    fastingbs = st.radio("Fasting Blood Sugar > 120 mg/dL?", ["Yes", "No"])
-
-    restingecg = st.selectbox("Resting ECG Result", [
-        "Normal",
-        "ST Abnormality",
-        "Left Ventricular Hypertrophy"
-    ])
-
-    exerciseangina = st.radio("Exercise-induced chest pain?", ["Yes", "No"])
-
-    maxhr = st.number_input("Maximum Heart Rate Achieved", value=150)
-
-    oldpeak = st.number_input("ST Depression (Oldpeak)", value=1.0,
-                              help="Lower is generally better")
-
-    st_slope = st.selectbox("ST Segment Slope", ["Up", "Flat", "Down"])
+    with st.expander("📊 Clinical Indicators", expanded=True):
+        fastingbs = st.radio("Fasting Blood Sugar > 120?", ["Yes", "No"])
+        restingecg = st.selectbox("ECG Result", list(restingecg_map.keys()))
+        exerciseangina = st.radio("Exercise Angina?", ["Yes", "No"])
+        oldpeak = st.number_input("ST Depression (Oldpeak)", value=1.0)
+        st_slope = st.selectbox("ST Slope", ["Up", "Flat", "Down"])
 
 # ================== CONVERT INPUT ==================
 sex = "M" if sex == "Male" else "F"
 fastingbs = 1 if fastingbs == "Yes" else 0
 exerciseangina = "Y" if exerciseangina == "Yes" else "N"
 chestpaintype = chest_pain_map[chest_pain]
-
-# ECG mapping (match training data!)
-restingecg_map = {
-    "Normal": "Normal",
-    "ST Abnormality": "ST",
-    "Left Ventricular Hypertrophy": "LVH"
-}
 restingecg = restingecg_map[restingecg]
 
 # ================== DATAFRAME ==================
@@ -93,37 +87,62 @@ input_df = pd.DataFrame({
     'st_slope': [st_slope]
 })
 
-# ================== PREDICTION ==================
-if st.button("🔍 Predict Risk"):
+# ================== PREDICTION (REAL-TIME) ==================
+prediction = model.predict(input_df)[0]
+probability = model.predict_proba(input_df)[0][1]
 
-    try:
-        prediction = model.predict(input_df)[0]
-        probability = model.predict_proba(input_df)[0][1]
+# ================== HERO SECTION ==================
+st.markdown("## 📊 Risk Analysis")
 
-        st.subheader("📊 Prediction Result")
+colA, colB = st.columns([2, 1])
 
-        # Metric display
-        st.metric("Risk Probability", f"{probability:.2%}")
+with colA:
+    st.metric("Risk Probability", f"{probability:.2%}")
 
-        # Progress bar
-        st.progress(float(probability))
+with colB:
+    if probability < 0.3:
+        st.success("🟢 Low Risk")
+    elif probability < 0.7:
+        st.warning("🟡 Moderate Risk")
+    else:
+        st.error("🔴 High Risk")
 
-        # Risk interpretation
-        if probability < 0.3:
-            st.success("🟢 Low Risk: Maintain a healthy lifestyle.")
-        elif probability < 0.7:
-            st.warning("🟡 Moderate Risk: Consider consulting a doctor.")
-        else:
-            st.error("🔴 High Risk: Medical consultation recommended.")
+# ================== GAUGE CHART ==================
+fig = go.Figure(go.Indicator(
+    mode="gauge+number",
+    value=probability * 100,
+    title={'text': "Heart Risk (%)"},
+    gauge={
+        'axis': {'range': [0, 100]},
+        'steps': [
+            {'range': [0, 30], 'color': "green"},
+            {'range': [30, 70], 'color': "yellow"},
+            {'range': [70, 100], 'color': "red"},
+        ],
+    }
+))
 
-        # Final classification
-        if prediction == 1:
-            st.error("⚠️ Model Prediction: High Risk of Heart Disease")
-        else:
-            st.success("✅ Model Prediction: Low Risk of Heart Disease")
+st.plotly_chart(fig, use_container_width=True)
 
-    except Exception as e:
-        st.error(f"Prediction error: {e}")
+# ================== SMART FEEDBACK ==================
+st.markdown("## 💡 Health Insights")
+
+if cholesterol > 240:
+    st.warning("⚠️ High cholesterol detected")
+
+if restingbp > 140:
+    st.warning("⚠️ High blood pressure")
+
+if maxhr < 100:
+    st.info("ℹ️ Low heart rate capacity")
+
+# ================== FINAL RESULT ==================
+st.markdown("## 🧾 Final Prediction")
+
+if prediction == 1:
+    st.error("⚠️ High Risk of Heart Disease")
+else:
+    st.success("✅ Low Risk of Heart Disease")
 
 # ================== DISCLAIMER ==================
-st.caption("⚠️ This tool is for educational purposes only and not a medical diagnosis.")
+st.caption("⚠️ This tool is for educational purposes only.")
